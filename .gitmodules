@@ -1,0 +1,3 @@
+[submodule "submodules/rsync-rs"]
+	path = submodules/rsync-rs
+	url = https://github.com/TechPizzaDev/rsync-rs
