@@ -8,28 +8,7 @@
       "type": "npm",
       "script": "dev",
       "isBackground": true,
-      "problemMatcher": [
-        {
-          "owner": "vite",
-          "fileLocation": "absolute",
-          "background": {
-            "activeOnStart": true,
-            // Vite outputs single-line messages which can trip this up.
-            "beginsPattern": "\\[vite\\]",
-            "endsPattern": "(ready in )|( PM )"
-          },
-          "pattern": [
-            {
-              "regexp": "^(.+):(\\d+):(\\d+): (\\w+): (.*)$",
-              "file": 1,
-              "line": 2,
-              "column": 3,
-              "severity": 4,
-              "message": 5,
-            }
-          ],
-        }
-      ]
+      "problemMatcher": []
     },
     {
       "label": "ui:build",
