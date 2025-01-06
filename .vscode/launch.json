@@ -31,6 +31,25 @@
       },
       // task for the `beforeBuildCommand` if used, must be configured in `.vscode/tasks.json`
       "preLaunchTask": "ui:build"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug 'rsync_bench'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bench=rsync_bench",
+          "--package=fast_rsync"
+        ],
+        "filter": {
+          "name": "rsync_bench",
+          "kind": "bench"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
     }
   ]
 }
