@@ -16,22 +16,22 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-async fn install(app: AppHandle) -> String {
+async fn install(app: AppHandle) -> Result<String, ()> {
     let input_path = AsyncFileDialog::from(app.dialog().file()).pick_file().await;
-    let output_path = AsyncFileDialog::from(app.dialog().file()).save_file().await;
-    if let Some(input_file) = input_path {
-        if let Some(out_file) = output_path {
-            do_install(
-                app,
-                input_file.path().to_path_buf(),
-                out_file.path().to_path_buf(),
-            )
-            .await
-            .unwrap();
-        }
-    }
+    let input_file = input_path.ok_or(())?;
 
-    format!("Installed {}", 123)
+    let output_path = AsyncFileDialog::from(app.dialog().file()).save_file().await;
+    let output_file = output_path.ok_or(())?;
+
+    do_install(
+        app,
+        input_file.path().to_path_buf(),
+        output_file.path().to_path_buf(),
+    )
+    .await
+    .unwrap();
+
+    Ok(format!("Installed {}", 123))
 }
 
 async fn do_install(
