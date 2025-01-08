@@ -14,14 +14,6 @@ async function install() {
   }
 }
 
-async function createPatch(outDir: string, newDir: string, oldDir: string | undefined) {
-  let result = await invoke<CreatePatchResult>("create_patch", { outDir, newDir, oldDir });
-
-  createPatchProgressEl.value = result.totalFiles;
-  createPatchMsgEl.textContent = `Created patch with ${result.totalFiles} files`;
-  createPatchPathMsgEl.textContent = "";
-}
-
 window.addEventListener("DOMContentLoaded", () => {
   installMsgEl = document.querySelector("#install-msg") ?? throwNull();
   createPatchProgressEl = document.querySelector("#create-patch-progress") ?? throwNull();
@@ -54,28 +46,68 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   let form = document.querySelector<HTMLFormElement>("#create-patch-form");
-  form?.addEventListener("submit", (e) => {
+  form?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    
+
     var data = new FormData(form);
     let outDir = data.get("out")?.toString();
     let newDir = data.get("new")?.toString();
     let oldDir = data.get("old")?.toString();
     if (outDir && newDir) {
-      createPatch(outDir, newDir, oldDir);
+      if (e.submitter instanceof HTMLButtonElement) {
+        e.submitter.disabled = true;
+      }
+      try {
+        let result = await invoke<CreatePatchResult>("create_patch", { outDir, newDir, oldDir });
+        let manifest = result.manifest;
+
+        let newCount = manifest.new_files.length;
+        let diffCount = manifest.diff_files.length;
+        let staleCount = manifest.stale_files.length;
+        let totalCount = newCount + diffCount;
+        createPatchProgressEl.value = totalCount;
+
+        let patchSizeMB = result.patch_size / (1024.0 * 1024.0);
+        let fractionDigits = patchSizeMB >= 1000 ? 0 : 1;
+        let sizeStr = patchSizeMB.toFixed(fractionDigits) + "MiB";
+        createPatchMsgEl.textContent =
+          `Created ${sizeStr} patch with ${totalCount} files ` +
+          `(${newCount} new, ${diffCount} diff, ${staleCount} stale)`;
+      } catch (err) {
+        createPatchProgressEl.value = 0;
+        createPatchMsgEl.textContent = `Error: ${err}`;
+      }
+      createPatchPathMsgEl.textContent = "";
+      if (e.submitter instanceof HTMLButtonElement) {
+        e.submitter.disabled = false;
+      }
     }
   });
 });
 
 type CreatePatchProgress = {
-  doneFiles: number;
-  totalFiles: number;
+  done_files: number;
+  total_files: number;
   path: string;
 };
 
 type CreatePatchResult = {
-  totalFiles: number;
+  manifest: PatchManifest;
+  patch_size: number;
 };
+
+type FileManifest = {
+  path: string;
+  len: number;
+  hash: Uint8Array,
+};
+
+type PatchManifest = {
+  manifest_version: string,
+  new_files: string[],
+  diff_files: FileManifest[],
+  stale_files: string[],
+}
 
 listen<string>("install-finished", (event) => {
   console.log(`downloading ${event.payload}`);
@@ -84,9 +116,9 @@ listen<string>("install-finished", (event) => {
 listen<CreatePatchProgress>("create-patch-progress", (event) => {
   let payload = event.payload;
 
-  createPatchProgressEl.value = payload.doneFiles;
-  createPatchProgressEl.max = payload.totalFiles;
-  createPatchMsgEl.textContent = `${payload.doneFiles} / ${payload.totalFiles}`;
+  createPatchProgressEl.value = payload.done_files;
+  createPatchProgressEl.max = payload.total_files;
+  createPatchMsgEl.textContent = `${payload.done_files} / ${payload.total_files}`;
   createPatchPathMsgEl.textContent = `${payload.path}`;
 });
 

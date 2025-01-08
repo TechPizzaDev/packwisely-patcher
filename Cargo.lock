@@ -2880,6 +2880,7 @@ dependencies = [
 name = "packwisely-patcher"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-compat",
  "async-compression",
  "async-stream",

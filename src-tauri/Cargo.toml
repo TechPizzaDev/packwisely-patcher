@@ -32,6 +32,7 @@ serde_with = { version = "3.12", features = ["base64"] }
 tokio = { version = "1", features = ["io-std", "net"] }
 tokio-util = { version = "0.7", default-features = false, features = ["codec"] }
 futures = "0.3"
+anyhow = "1.0"
 #rfd = { version = "0.15", default-features = false, features = ["tokio"] }
 
 fast_rsync = { path = "../submodules/rsync-rs" }

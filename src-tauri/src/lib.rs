@@ -1,6 +1,6 @@
 mod file_util;
 
-use std::{collections::HashSet, error::Error, path::PathBuf};
+use std::{collections::HashSet, error::Error, fmt::Display, path::PathBuf};
 
 use async_compat::{Compat, CompatExt};
 use fast_rsync::{
@@ -25,11 +25,13 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-async fn install(app: AppHandle) -> Result<String, ()> {
+async fn install(app: AppHandle) -> Result<String, String> {
     //let input_file = AsyncFileDialog::from(app.dialog().file()).pick_file().await.ok_or(())?;
     //let output_file = AsyncFileDialog::from(app.dialog().file()).save_file().await.ok_or(())?;
 
-    do_install(app, "".into(), "".into()).await.unwrap();
+    do_install(app, "".into(), "".into())
+        .await
+        .map_err(|err| err.to_string())?;
 
     Ok(format!("Installed {}", 123))
 }
@@ -40,7 +42,7 @@ async fn create_patch(
     out_dir: String,
     new_dir: String,
     old_dir: String,
-) -> Result<CreatePatchResult, ()> {
+) -> Result<CreatePatchResult, String> {
     let result = do_create_patch(
         app,
         out_dir.into(),
@@ -48,16 +50,12 @@ async fn create_patch(
         (!old_dir.is_empty()).then(|| old_dir.into()),
     )
     .await
-    .unwrap();
+    .map_err(|err| err.to_string())?;
 
     Ok(result)
 }
 
-async fn do_install(
-    app: AppHandle,
-    source_file: PathBuf,
-    sig_file: PathBuf,
-) -> Result<(), Box<dyn Error + 'static>> {
+async fn do_install(app: AppHandle, source_file: PathBuf, sig_file: PathBuf) -> anyhow::Result<()> {
     let mut sig_fs = OpenOptions::new()
         .read(true)
         .write(true)
@@ -96,7 +94,6 @@ async fn do_install(
 }
 
 #[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 struct CreatePatchProgress<'a> {
     done_files: usize,
     total_files: usize,
@@ -104,9 +101,9 @@ struct CreatePatchProgress<'a> {
 }
 
 #[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 struct CreatePatchResult {
-    total_files: usize,
+    manifest: PatchManifest,
+    patch_size: u64,
 }
 
 #[serde_as]
@@ -124,7 +121,6 @@ enum PatchManifestVersion {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct PatchManifest {
     manifest_version: PatchManifestVersion,
     new_files: Vec<FileManifest>,
@@ -149,19 +145,24 @@ async fn do_create_patch(
     out_dir: PathBuf,
     new_dir: PathBuf,
     old_dir: Option<PathBuf>,
-) -> Result<CreatePatchResult, Box<dyn Error + 'static>> {
+) -> anyhow::Result<CreatePatchResult> {
     let mut out_raw_tar = create_tar(&out_dir.join("raw.tar")).await?;
     let mut out_sig_tar = create_tar(&out_dir.join("sig.tar")).await?;
     let mut out_manifest_fs = File::create(out_dir.join("manifest.json")).await?;
 
-    let (new_files, diff_files, stale_files) = if let Some(old_dir) = old_dir {
-        let result = do_create_diff(&app, &out_dir, &new_dir, &old_dir).await?;
-        (result.new_files, result.diff_files, result.stale_files)
+    let diff_result = if let Some(old_dir) = old_dir {
+        do_create_diff(&app, &out_dir, &new_dir, &old_dir).await?
     } else {
         let new_files = get_files(&new_dir).await?;
-        (new_files, vec![], vec![])
+        DiffResult {
+            new_files,
+            diff_files: vec![],
+            stale_files: vec![],
+            diff_size: 0,
+        }
     };
-    let total_count = diff_files.len() + new_files.len();
+    let diff_files = diff_result.diff_files;
+    let total_count = diff_files.len() + diff_result.new_files.len();
     let mut done_count = diff_files.len();
 
     let mut new_mf_files = Vec::new();
@@ -169,7 +170,7 @@ async fn do_create_patch(
     let mut write_buf = Vec::with_capacity(1024 * 16);
     let mut read_buf = BytesMut::with_capacity(1024 * 16);
 
-    for file in new_files.into_iter() {
+    for file in diff_result.new_files.into_iter() {
         let relative_path = file.strip_prefix(&new_dir)?;
 
         let progress_path = file.to_string_lossy();
@@ -238,22 +239,25 @@ async fn do_create_patch(
         .unwrap();
     }
 
-    serde_json::to_writer_pretty(
-        &mut write_buf,
-        &PatchManifest {
-            manifest_version: PatchManifestVersion::V1,
-            new_files: new_mf_files,
-            diff_files,
-            stale_files,
-        },
-    )?;
+    let manifest = PatchManifest {
+        manifest_version: PatchManifestVersion::V1,
+        new_files: new_mf_files,
+        diff_files,
+        stale_files: diff_result.stale_files,
+    };
+    serde_json::to_writer(&mut write_buf, &manifest)?;
     out_manifest_fs.write_all(&mut write_buf).await?;
 
-    out_raw_tar.finish().await?;
-    out_sig_tar.finish().await?;
+    let out_raw_fs = out_raw_tar.into_inner().await?;
+    let out_raw_size = out_raw_fs.into_inner().metadata().await?.len();
 
+    let out_sig_fs = out_sig_tar.into_inner().await?;
+    let out_sig_size = out_sig_fs.into_inner().metadata().await?.len();
+
+    let patch_size = diff_result.diff_size + out_sig_size + out_raw_size + write_buf.len() as u64;
     Ok(CreatePatchResult {
-        total_files: total_count,
+        manifest,
+        patch_size,
     })
 }
 
@@ -261,6 +265,7 @@ struct DiffResult {
     new_files: HashSet<PathBuf>,
     diff_files: Vec<FileManifest>,
     stale_files: Vec<String>,
+    diff_size: u64,
 }
 
 async fn do_create_diff(
@@ -268,7 +273,7 @@ async fn do_create_diff(
     out_dir: &PathBuf,
     new_dir: &PathBuf,
     old_dir: &PathBuf,
-) -> Result<DiffResult, Box<dyn Error + 'static>> {
+) -> anyhow::Result<DiffResult> {
     let old_sig_tar = open_tar(&old_dir.join("sig.tar")).await?;
     let mut out_diff_tar = create_tar(&out_dir.join("diff.tar")).await?;
 
@@ -340,12 +345,14 @@ async fn do_create_diff(
         .unwrap();
     }
 
-    out_diff_tar.finish().await?;
+    let out_diff_fs = out_diff_tar.into_inner().await?;
+    let out_diff_len = out_diff_fs.into_inner().metadata().await?.len();
 
     Ok(DiffResult {
         new_files,
         diff_files,
         stale_files,
+        diff_size: out_diff_len,
     })
 }
 
