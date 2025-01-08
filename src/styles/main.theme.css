@@ -60,4 +60,9 @@ button:active {
   button:active {
     background-color: #0f0f0f69;
   }
+
+  button:disabled {
+    color: #888888;
+    background-color: #4f4f4f;
+  }
 }
