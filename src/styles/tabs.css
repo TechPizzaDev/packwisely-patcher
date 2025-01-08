@@ -1,0 +1,33 @@
+.tab-list {
+    width: max-content;
+    float: left;
+    min-height: 100%;
+    border-right: 2px solid;
+}
+
+.tab-list .tab-link {
+    padding: 1px 0px;
+    display: block;
+    cursor: pointer;
+    border: none;
+    outline: none;
+    width: 100%;
+    text-align: left;
+    transition: 0.1s;
+}
+
+.tab-list .tab-link span {
+    display: block;
+    padding: 20px 16px;
+    border: 1px solid;
+    border-radius: 4px;
+}
+
+.tab-body {
+    display: none;
+    height: 100%;
+}
+
+.tab-body.visible {
+    display: block;
+}

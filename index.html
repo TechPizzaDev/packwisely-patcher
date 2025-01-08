@@ -3,24 +3,67 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="stylesheet" href="/src/styles.css" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tauri App</title>
 
+  <link rel="stylesheet" href="/src/styles/main.css" />
+  <link rel="stylesheet" href="/src/styles/main.theme.css" />
+  <link rel="stylesheet" href="/src/styles/logo.css" />
+  <link rel="stylesheet" href="/src/styles/logo.theme.css" />
+  <link rel="stylesheet" href="/src/styles/tabs.css" />
+  <link rel="stylesheet" href="/src/styles/tabs.theme.css" />
+
   <script type="module" src="/src/main.ts" defer></script>
+  <script type="module" src="/src/tabs.ts" defer></script>
 </head>
 
 <body>
-  <main class="container">
-    <div class="row">
-      <form id="install-form">
-        <button type="submit">Install</button>
-      </form>
+  <div class="tab-list">
+    <button class="tab-link" x:tab="game1"><span>Pack Wisely</span></button>
+    <button class="tab-link" x:tab="tool1"><span>Patch Tool</span></button>
+  </div>
 
-      <progress id="install-progress" max="1"></progress>
-      <p id="install-msg"></p>
-    </div>
-  </main>
+  <div class="tab-body" x:tab="game1">
+    <main class="container">
+      <div class="row bottom">
+        <span id="install-msg"></span>
+        <progress class="patch-progress" max="1"></progress>
+
+        <form id="install-form">
+          <button type="submit">Install</button>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <div class="tab-body" x:tab="tool1">
+    <main class="create-patch-main container">
+      <div class="column">
+        <form id="create-patch-form">
+          <div class="input-grid">
+            <label for="create-patch-out-folder">Out:</label>
+            <input id="create-patch-out-folder" type="text" name="out" placeholder="Out folder">
+            <button type="button" x:for="out" x:type="folder">Browse</button>
+
+            <label for="create-patch-new-folder">New:</label>
+            <input id="create-patch-new-folder" type="text" name="new" placeholder="New folder">
+            <button type="button" x:for="new" x:type="folder">Browse</button>
+
+            <label for="create-patch-old-folder">Old:</label>
+            <input id="create-patch-old-folder" type="text" name="old" placeholder="Old folder (optional)">
+            <button type="button" x:for="old" x:type="folder">Browse</button>
+          </div>
+
+          <div class="column">
+            <button type="submit">Create patch</button>
+            <progress class="patch-progress" id="create-patch-progress" value="0" max="1"></progress>
+            <span id="create-patch-msg"></span>
+            <span id="create-patch-path-msg"></span>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
 </body>
 
 </html>

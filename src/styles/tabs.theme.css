@@ -1,0 +1,40 @@
+.tab-list {
+    border-color: #ccc;
+}
+
+.tab-list .tab-link {
+    background-color: transparent;
+    color: black;
+    box-shadow: none;
+}
+
+.tab-list .tab-link span {
+    background-color: #ccc;
+    border-color: transparent;
+}
+
+.tab-list .tab-link:hover span {
+    border-color: #396cd8;
+}
+
+.tab-list .tab-link.active span {
+    background-color: #f1f1f1;
+    border-color: #404040;
+}
+
+@media (prefers-color-scheme: dark) {
+    .tab-list {
+        border-color: #404040;
+    }
+    
+    .tab-list .tab-link span {
+        background-color: #0f0f0f98;
+        color: #f6f6f6;
+    }
+    
+    .tab-list .tab-link.active span {
+        border-color: #ddd;
+        background-color: #2f2f2f;
+    }
+  }
+  
