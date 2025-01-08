@@ -40,6 +40,13 @@ button:active {
   border-color: #396cd8;
   background-color: #e8e8e8;
 }
+button:disabled {
+  color: #888888;
+  background-color: #bbb;
+}
+button:disabled:hover {
+  border-color: #ddd;
+}
 
 @media (prefers-color-scheme: dark) {
   :root {
@@ -60,9 +67,11 @@ button:active {
   button:active {
     background-color: #0f0f0f69;
   }
-
   button:disabled {
     color: #888888;
     background-color: #4f4f4f;
+  }
+  button:disabled:hover {
+    border-color: #ffffff;
   }
 }

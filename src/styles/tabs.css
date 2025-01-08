@@ -7,6 +7,7 @@
 
 .tab-list .tab-link {
     padding: 1px 0px;
+    padding-left: 1px;
     display: block;
     cursor: pointer;
     border: none;
@@ -17,8 +18,8 @@
 
 .tab-list .tab-link span {
     display: block;
-    padding: 20px 16px;
-    border: 1px solid;
+    padding: 20px 12px;
+    border: 2px solid;
     border-top-left-radius: 12px;
     border-bottom-left-radius: 12px;
 }

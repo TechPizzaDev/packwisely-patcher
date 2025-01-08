@@ -9,7 +9,7 @@
 }
 
 .tab-list .tab-link span {
-    background-color: #fff;
+    background-color: #e4e4e4;
     border-color: #ccc;
     transition: border-color 0.2s;
 }
@@ -19,8 +19,9 @@
 }
 
 .tab-list .tab-link.active span {
-    background-color: #ddd;
+    background-color: #fff;
     border-color: #888;
+    border-right-color: transparent;
 }
 
 @media (prefers-color-scheme: dark) {
