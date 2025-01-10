@@ -1,6 +1,6 @@
 mod file_util;
 
-use std::{collections::HashSet, error::Error, fmt::Display, path::PathBuf};
+use std::{collections::HashSet, path::PathBuf};
 
 use async_compat::{Compat, CompatExt};
 use fast_rsync::{
@@ -94,10 +94,10 @@ async fn do_install(app: AppHandle, source_file: PathBuf, sig_file: PathBuf) -> 
 }
 
 #[derive(Clone, Serialize)]
-struct CreatePatchProgress<'a> {
+struct CreatePatchProgress {
     done_files: usize,
     total_files: usize,
-    path: &'a str,
+    path: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -162,8 +162,12 @@ async fn do_create_patch(
         }
     };
     let diff_files = diff_result.diff_files;
-    let total_count = diff_files.len() + diff_result.new_files.len();
-    let mut done_count = diff_files.len();
+
+    let mut progress = CreatePatchProgress {
+        done_files: diff_files.len(),
+        total_files: diff_files.len() + diff_result.new_files.len(),
+        path: "".into(),
+    };
 
     let mut new_mf_files = Vec::new();
 
@@ -173,16 +177,8 @@ async fn do_create_patch(
     for file in diff_result.new_files.into_iter() {
         let relative_path = file.strip_prefix(&new_dir)?;
 
-        let progress_path = file.to_string_lossy();
-        app.emit(
-            "create-patch-progress",
-            CreatePatchProgress {
-                done_files: done_count,
-                total_files: total_count,
-                path: &progress_path,
-            },
-        )
-        .unwrap();
+        progress.path = file.to_string_lossy().into();
+        progress.emit(&app);
 
         let mut src_fs = File::open(&file).await?;
         let src_meta = src_fs.metadata().await?;
@@ -222,21 +218,13 @@ async fn do_create_patch(
         read_buf.clear();
 
         new_mf_files.push(FileManifest {
-            path: relative_path.to_string_lossy().to_string(),
+            path: relative_path.to_string_lossy().into(),
             len: src_meta.len(),
             hash: hash.finish(),
         });
 
-        done_count += 1;
-        app.emit(
-            "create-patch-progress",
-            CreatePatchProgress {
-                done_files: done_count,
-                total_files: total_count,
-                path: &progress_path,
-            },
-        )
-        .unwrap();
+        progress.done_files += 1;
+        progress.emit(&app);
     }
 
     let manifest = PatchManifest {
@@ -285,29 +273,24 @@ async fn do_create_diff(
     let mut new_buf = Vec::new();
     let mut diff_buf = Vec::new();
 
-    let total_count = new_files.len();
-    let mut done_count = 0;
+    let mut progress = CreatePatchProgress {
+        done_files: 0,
+        total_files: new_files.len(),
+        path: "".into(),
+    };
 
     let mut old_entries = old_sig_tar.entries()?;
     while let Some(mut old_sig_entry) = old_entries.next().await.transpose()? {
         let relative_path = old_sig_entry.path()?.into_owned();
-        let new_path = new_dir.join(&*relative_path);
+        let new_path = new_dir.join(&relative_path);
 
         if !new_files.remove(&new_path) {
-            stale_files.push(new_path.to_string_lossy().to_string());
+            stale_files.push(new_path.to_string_lossy().into());
             continue;
         }
 
-        let progress_path = new_path.to_string_lossy();
-        app.emit(
-            "create-patch-progress",
-            CreatePatchProgress {
-                done_files: done_count,
-                total_files: total_count,
-                path: &progress_path,
-            },
-        )
-        .unwrap();
+        progress.path = new_path.to_string_lossy().into();
+        progress.emit(app);
 
         old_sig_entry.read_to_end(&mut sig_buf).await?;
         let old_sig = fast_rsync::Signature::deserialize(&mut sig_buf.as_slice()).await?;
@@ -324,7 +307,7 @@ async fn do_create_diff(
             .await?;
 
         diff_files.push(FileManifest {
-            path: relative_path.to_string_lossy().to_string(),
+            path: relative_path.to_string_lossy().into(),
             len: new_buf.len() as u64,
             hash: Blake3Hash::default().update(&new_buf).finish(),
         });
@@ -333,16 +316,8 @@ async fn do_create_diff(
         new_buf.clear();
         diff_buf.clear();
 
-        done_count += 1;
-        app.emit(
-            "create-patch-progress",
-            CreatePatchProgress {
-                done_files: done_count,
-                total_files: new_files.len(),
-                path: &progress_path,
-            },
-        )
-        .unwrap();
+        progress.done_files += 1;
+        progress.emit(app);
     }
 
     let out_diff_fs = out_diff_tar.into_inner().await?;
@@ -354,6 +329,12 @@ async fn do_create_diff(
         stale_files,
         diff_size: out_diff_len,
     })
+}
+
+impl CreatePatchProgress {
+    fn emit(&self, app: &AppHandle) {
+        app.emit("create-patch-progress", self).unwrap();
+    }
 }
 
 async fn create_tar(path: &PathBuf) -> std::io::Result<async_tar::Builder<Compat<File>>> {
