@@ -24,6 +24,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -32,5 +33,17 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlCQTdBQjMyQTJDRDZBRTYKUldUbWFzMmlNcXVubTdmQ3owVjhWWnFkTDVUcFVBTGprOFJkUEhaalhLclYrYi9CZGdqbXA0OUoK",
+      "endpoints": [
+        "https://techpizza-web.nickac.dev/assets/packwisely-patcher/latest.json",
+        "https://techpizza.nickac.dev/assets/packwisely-patcher/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
