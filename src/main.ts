@@ -3,26 +3,40 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 
 let installMsgEl: HTMLElement;
+let installProgressEl: HTMLProgressElement;
 
 let createPatchProgressEl: HTMLProgressElement;
 let createPatchMsgEl: HTMLElement;
 let createPatchPathMsgEl: HTMLElement;
 
-async function install() {
-  if (installMsgEl) {
-    installMsgEl.textContent = await invoke("install");
-  }
-}
-
 window.addEventListener("DOMContentLoaded", () => {
   installMsgEl = document.querySelector("#install-msg") ?? throwNull();
+  installProgressEl = document.querySelector("#install-progress") ?? throwNull();
+
   createPatchProgressEl = document.querySelector("#create-patch-progress") ?? throwNull();
   createPatchMsgEl = document.querySelector("#create-patch-msg") ?? throwNull();
   createPatchPathMsgEl = document.querySelector("#create-patch-path-msg") ?? throwNull();
 
-  document.querySelector("#install-form")?.addEventListener("submit", (e) => {
+  document.querySelector<HTMLFormElement>("#install-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    install();
+
+    if (e.submitter instanceof HTMLButtonElement) {
+      e.submitter.disabled = true;
+    }
+    installProgressEl.classList.remove("progress-error");
+    installProgressEl.value = 0;
+
+    try {
+      installMsgEl.textContent = await invoke("install");
+    }
+    catch (err) {
+      installMsgEl.textContent = `Error: ${err}`;
+      installProgressEl.classList.add("progress-error");
+    }
+
+    if (e.submitter instanceof HTMLButtonElement) {
+      e.submitter.disabled = false;
+    }
   });
 
   let browseButtons = document.querySelectorAll<HTMLButtonElement>("#create-patch-form button[x\\:for]");
@@ -57,6 +71,7 @@ window.addEventListener("DOMContentLoaded", () => {
       if (e.submitter instanceof HTMLButtonElement) {
         e.submitter.disabled = true;
       }
+
       try {
         let result = await invoke<CreatePatchResult>("create_patch", { outDir, newDir, oldDir });
         let manifest = result.manifest;
@@ -77,6 +92,7 @@ window.addEventListener("DOMContentLoaded", () => {
         createPatchProgressEl.value = 0;
         createPatchMsgEl.textContent = `Error: ${err}`;
       }
+      
       createPatchPathMsgEl.textContent = "";
       if (e.submitter instanceof HTMLButtonElement) {
         e.submitter.disabled = false;

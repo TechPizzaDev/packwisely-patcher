@@ -64,6 +64,14 @@ button {
     width: 100%;
 }
 
+.patch-msg {
+    min-height: 1.5em;
+}
+
+.progress-error {
+    accent-color: red;
+}
+
 .input-grid {
     display: grid;
     grid-gap: 8px;
@@ -82,4 +90,9 @@ button {
     overflow: hidden;
     display: flex;
     justify-content: end;
+}
+
+#install-form > button[type="submit"] {
+    margin-left: 4px;
+    font-size: 1.5rem;
 }

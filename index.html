@@ -26,8 +26,10 @@
   <div class="tab-body" x:tab="game1">
     <main class="container">
       <div class="row bottom">
-        <span id="install-msg"></span>
-        <progress class="patch-progress" max="1"></progress>
+        <div class="column">
+          <span class="patch-msg" id="install-msg"> </span>
+          <progress class="patch-progress" id="install-progress" value="0" max="1"></progress>
+        </div>
 
         <form id="install-form">
           <button type="submit">Install</button>
@@ -57,8 +59,8 @@
           <div class="column">
             <button type="submit">Create patch</button>
             <progress class="patch-progress" id="create-patch-progress" value="0" max="1"></progress>
-            <span id="create-patch-msg"></span>
-            <span id="create-patch-path-msg"></span>
+            <span class="patch-msg" id="create-patch-msg"></span>
+            <span class="patch-msg" id="create-patch-path-msg"></span>
           </div>
         </form>
       </div>
