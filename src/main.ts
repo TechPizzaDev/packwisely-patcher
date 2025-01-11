@@ -27,7 +27,7 @@ window.addEventListener("DOMContentLoaded", () => {
     installProgressEl.value = 0;
 
     try {
-      installMsgEl.textContent = await invoke("install");
+      await invoke("install");
     }
     catch (err) {
       installMsgEl.textContent = `Error: ${err}`;

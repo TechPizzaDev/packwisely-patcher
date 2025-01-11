@@ -17,15 +17,21 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-dialog = "2"
+
+dirs = "5.0"
+
 [dependencies]
 tauri = { version = "2", default-features = false, features = [
     "objc-exception",
     "wry",
     "common-controls-v6",
 ] }
-
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2"
+tauri-plugin-http = "2"
+tauri-plugin-os = "2"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -1,4 +1,5 @@
 mod file_util;
+mod install;
 
 use std::{collections::HashSet, path::PathBuf};
 
@@ -8,10 +9,12 @@ use fast_rsync::{
     SignatureOptions,
 };
 use futures::{pin_mut, AsyncReadExt, StreamExt};
+use install::do_install;
 use serde::{Deserialize, Serialize};
 use serde_with::base64::Base64;
 use serde_with::serde_as;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Listener, Manager};
+use tauri_plugin_http::reqwest;
 use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncReadExt as OtherAsyncReadExt, AsyncSeekExt, AsyncWriteExt},
@@ -25,15 +28,18 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-async fn install(app: AppHandle) -> Result<String, String> {
-    //let input_file = AsyncFileDialog::from(app.dialog().file()).pick_file().await.ok_or(())?;
-    //let output_file = AsyncFileDialog::from(app.dialog().file()).save_file().await.ok_or(())?;
+async fn install(app: AppHandle) -> Result<(), String> {
+    let http_client = reqwest::Client::builder()
+        .build()
+        .map_err(|err| err.to_string())?;
 
-    do_install(app, "".into(), "".into())
+    let install_dir = dirs::data_local_dir().ok_or("missing install dir")?;
+
+    do_install(&app, http_client, install_dir.join("PackWisely"))
         .await
         .map_err(|err| err.to_string())?;
 
-    Ok(format!("Installed {}", 123))
+    Ok(())
 }
 
 #[tauri::command]
@@ -55,59 +61,21 @@ async fn create_patch(
     Ok(result)
 }
 
-async fn do_install(app: AppHandle, source_file: PathBuf, sig_file: PathBuf) -> anyhow::Result<()> {
-    let mut sig_fs = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(&sig_file)
-        .await?;
-
-    let sig = if sig_fs.metadata().await?.len() == 0 {
-        let mut source_fs = File::open(&source_file).await?;
-        fast_rsync::Signature::calculate(
-            &mut source_fs,
-            &mut sig_fs,
-            &SignatureOptions::new(
-                fast_rsync::RollingHashType::Rollsum,
-                fast_rsync::CryptoHashType::Md4,
-                1024,
-                16,
-            ),
-        )
-        .await?
-    } else {
-        fast_rsync::Signature::deserialize(&mut sig_fs).await?
-    };
-    sig_fs.seek(std::io::SeekFrom::Start(0)).await?;
-
-    let sig_len = sig_fs.metadata().await?.len();
-    let mut sig_buf = Vec::with_capacity(sig_len as usize);
-    sig_fs.read_to_end(&mut sig_buf).await?;
-
-    let index = sig.index(&sig_buf);
-
-    app.emit("install-finished", format!("sig len: {}", sig_len))
-        .unwrap();
-
-    Ok(())
-}
-
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct CreatePatchProgress {
     done_files: usize,
     total_files: usize,
     path: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct CreatePatchResult {
     manifest: PatchManifest,
     patch_size: u64,
 }
 
 #[serde_as]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct FileManifest {
     path: String,
     len: u64,
@@ -115,12 +83,12 @@ struct FileManifest {
     hash: [u8; 32],
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 enum PatchManifestVersion {
     V1,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct PatchManifest {
     manifest_version: PatchManifestVersion,
     new_files: Vec<FileManifest>,
@@ -249,6 +217,7 @@ async fn do_create_patch(
     })
 }
 
+#[derive(Debug)]
 struct DiffResult {
     new_files: HashSet<PathBuf>,
     diff_files: Vec<FileManifest>,
@@ -345,11 +314,35 @@ async fn open_tar(path: &PathBuf) -> std::io::Result<async_tar::Archive<Compat<F
     Ok(async_tar::Archive::new(File::open(path).await?.compat()))
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+struct SingleInstancePayload {
+    args: Vec<String>,
+    cwd: String,
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            println!("{}, {argv:?}, {cwd}", app.package_info().name);
+
+            app.emit("single-instance", SingleInstancePayload { args: argv, cwd })
+                .unwrap();
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![greet, install, create_patch])
+        .setup(|app| {
+            let app_handle = app.handle().clone();
+            app.listen("single-instance", move |ev| {
+                if let Ok(_) = serde_json::from_str::<SingleInstancePayload>(&ev.payload()) {
+                    if let Some((_, window)) = app_handle.webview_windows().iter().next() {
+                        _ = window.unminimize();
+                        _ = window.set_focus();
+                    }
+                }
+            });
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
