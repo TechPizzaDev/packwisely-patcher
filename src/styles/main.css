@@ -68,8 +68,23 @@ button {
     min-height: 1.5em;
 }
 
-.progress-error {
-    accent-color: red;
+.patch-io-grid {
+    display: grid;
+    grid-gap: 8px;
+    grid-template-columns: max-content auto;
+    margin-bottom: 8px;
+    justify-items: end;
+    align-items: center;
+}
+
+.patch-io-grid span {
+    display: flex;
+    justify-content: end;
+}
+
+.patch-io-span {
+    white-space: nowrap;
+    font-family: monospace, monospace;
 }
 
 .input-grid {
@@ -77,11 +92,11 @@ button {
     grid-gap: 8px;
     grid-template-columns: max-content auto min-content;
     margin-bottom: 8px;
+    align-items: center;
 }
 
 .input-grid label {
     display: flex;
-    align-items: center;
     justify-content: end;
 }
 
@@ -92,7 +107,7 @@ button {
     justify-content: end;
 }
 
-#install-form > button[type="submit"] {
+#install-form>button[type="submit"] {
     margin-left: 4px;
     font-size: 1.5rem;
 }

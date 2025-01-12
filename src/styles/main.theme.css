@@ -48,6 +48,13 @@ button:disabled:hover {
   border-color: #ddd;
 }
 
+.patch-progress-net {
+  accent-color: lime;
+}
+.progress-error {
+    accent-color: red;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;

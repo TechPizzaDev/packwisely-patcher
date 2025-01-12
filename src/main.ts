@@ -1,9 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { toReadableSize } from "./util";
 
 let installMsgEl: HTMLElement;
-let installProgressEl: HTMLProgressElement;
+let installNetIoSpanEl: HTMLSpanElement;
+let installNetProgressEl: HTMLProgressElement;
+let installDiskIoSpanEl: HTMLSpanElement;
+let installDiskProgressEl: HTMLProgressElement;
 
 let createPatchProgressEl: HTMLProgressElement;
 let createPatchMsgEl: HTMLElement;
@@ -11,7 +15,10 @@ let createPatchPathMsgEl: HTMLElement;
 
 window.addEventListener("DOMContentLoaded", () => {
   installMsgEl = document.querySelector("#install-msg") ?? throwNull();
-  installProgressEl = document.querySelector("#install-progress") ?? throwNull();
+  installNetIoSpanEl = document.querySelector("#install-net-io-span") ?? throwNull();
+  installNetProgressEl = document.querySelector("#install-net-progress") ?? throwNull();
+  installDiskIoSpanEl = document.querySelector("#install-disk-io-span") ?? throwNull();
+  installDiskProgressEl = document.querySelector("#install-disk-progress") ?? throwNull();
 
   createPatchProgressEl = document.querySelector("#create-patch-progress") ?? throwNull();
   createPatchMsgEl = document.querySelector("#create-patch-msg") ?? throwNull();
@@ -23,15 +30,19 @@ window.addEventListener("DOMContentLoaded", () => {
     if (e.submitter instanceof HTMLButtonElement) {
       e.submitter.disabled = true;
     }
-    installProgressEl.classList.remove("progress-error");
-    installProgressEl.value = 0;
+    installNetProgressEl.classList.remove("progress-error");
+    installDiskProgressEl.classList.remove("progress-error");
+    installNetProgressEl.value = 0;
+    installDiskProgressEl.value = 0;
 
     try {
       await invoke("install");
+      installMsgEl.textContent = `Installation finished`;
     }
     catch (err) {
       installMsgEl.textContent = `Error: ${err}`;
-      installProgressEl.classList.add("progress-error");
+      installNetProgressEl.classList.add("progress-error");
+      installDiskProgressEl.classList.add("progress-error");
     }
 
     if (e.submitter instanceof HTMLButtonElement) {
@@ -92,7 +103,7 @@ window.addEventListener("DOMContentLoaded", () => {
         createPatchProgressEl.value = 0;
         createPatchMsgEl.textContent = `Error: ${err}`;
       }
-      
+
       createPatchPathMsgEl.textContent = "";
       if (e.submitter instanceof HTMLButtonElement) {
         e.submitter.disabled = false;
@@ -106,6 +117,37 @@ type CreatePatchProgress = {
   total_files: number;
   path: string;
 };
+
+type InstallProgress = {
+  net: ProgressState;
+  disk: ProgressState;
+  message: string;
+};
+
+type ProgressState = {
+  value: number;
+  max: number;
+  known: boolean;
+};
+
+listen<InstallProgress>("install-progress", (event) => {
+  let payload = event.payload;
+
+  updateProgress(installNetIoSpanEl, installNetProgressEl, payload.net);
+  updateProgress(installDiskIoSpanEl, installDiskProgressEl, payload.disk);
+  installMsgEl.textContent = payload.message;
+});
+
+function updateProgress(span: HTMLSpanElement, bar: HTMLProgressElement, state: ProgressState) {
+  span.textContent = `${toReadableSize(state.value, 2)} / ${toReadableSize(state.max, 2)}`;
+
+  if (state.known) {
+    bar.value = state.value;
+  } else {
+    bar.removeAttribute("value");
+  }
+  bar.max = state.max;
+}
 
 type CreatePatchResult = {
   manifest: PatchManifest;
@@ -125,15 +167,12 @@ type PatchManifest = {
   stale_files: string[],
 }
 
-listen<string>("install-finished", (event) => {
-  console.log(`downloading ${event.payload}`);
-});
-
 listen<CreatePatchProgress>("create-patch-progress", (event) => {
   let payload = event.payload;
 
   createPatchProgressEl.value = payload.done_files;
   createPatchProgressEl.max = payload.total_files;
+
   createPatchMsgEl.textContent = `${payload.done_files} / ${payload.total_files}`;
   createPatchPathMsgEl.textContent = `${payload.path}`;
 });

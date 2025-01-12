@@ -1,5 +1,6 @@
 mod file_util;
 mod install;
+mod wine_util;
 
 use std::{collections::HashSet, path::PathBuf};
 
@@ -17,7 +18,7 @@ use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_http::reqwest;
 use tauri_plugin_updater::UpdaterExt;
 use tokio::{
-    fs::{File, OpenOptions},
+    fs::File,
     io::{AsyncReadExt as OtherAsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 use tokio_util::bytes::BytesMut;
@@ -331,6 +332,7 @@ pub fn run() {
                 .unwrap();
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![greet, install, create_patch])
         .setup(|app| {
             let app_handle = app.handle().clone();
