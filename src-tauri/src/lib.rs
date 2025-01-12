@@ -15,6 +15,7 @@ use serde_with::base64::Base64;
 use serde_with::serde_as;
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_http::reqwest;
+use tauri_plugin_updater::UpdaterExt;
 use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncReadExt as OtherAsyncReadExt, AsyncSeekExt, AsyncWriteExt},
@@ -341,8 +342,39 @@ pub fn run() {
                     }
                 }
             });
+
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                update(app_handle).await.unwrap();
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+async fn update(app: AppHandle) -> tauri_plugin_updater::Result<()> {
+    if let Some(update) = app.updater()?.check().await? {
+        let mut downloaded = 0;
+
+        let bytes = update
+            .download(
+                |chunk_length, content_length| {
+                    downloaded += chunk_length;
+                    println!("downloaded {downloaded} from {content_length:?}");
+                },
+                || {
+                    println!("download finished");
+                },
+            )
+            .await?;
+
+        update.install(bytes)?;
+
+        println!("update installed");
+        app.restart();
+    }
+
+    Ok(())
 }
