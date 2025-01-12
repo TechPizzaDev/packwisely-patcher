@@ -20,13 +20,16 @@ use tauri_plugin_updater::UpdaterExt;
 use tokio::{
     fs::File,
     io::{AsyncReadExt as OtherAsyncReadExt, AsyncSeekExt, AsyncWriteExt},
+    time::sleep,
 };
 use tokio_util::bytes::BytesMut;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+fn is_update_check_finished(app: AppHandle) -> bool {
+    app.try_state::<UpdateCheckState>()
+        .map(|state| state.finished)
+        .unwrap_or(false)
 }
 
 #[tauri::command]
@@ -333,7 +336,12 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![greet, install, create_patch])
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            is_update_check_finished,
+            install,
+            create_patch
+        ])
         .setup(|app| {
             let app_handle = app.handle().clone();
             app.listen("single-instance", move |ev| {
@@ -346,8 +354,17 @@ pub fn run() {
             });
 
             let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
+            let update_join_handle = tauri::async_runtime::spawn(async move {
                 update(app_handle).await.unwrap();
+            });
+
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(err) = update_join_handle.await {
+                    println!("failed to update: {}", err);
+                }
+                app_handle.manage(UpdateCheckState { finished: true });
+                app_handle.emit("update-check-finished", ()).unwrap();
             });
 
             Ok(())
@@ -356,7 +373,13 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
+struct UpdateCheckState {
+    finished: bool,
+}
+
 async fn update(app: AppHandle) -> tauri_plugin_updater::Result<()> {
+    println!("checking for update");
+
     if let Some(update) = app.updater()?.check().await? {
         let mut downloaded = 0;
 
@@ -376,6 +399,8 @@ async fn update(app: AppHandle) -> tauri_plugin_updater::Result<()> {
 
         println!("update installed");
         app.restart();
+    } else {
+        println!("up to date");
     }
 
     Ok(())

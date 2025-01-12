@@ -3,6 +3,8 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { toReadableSize } from "./util";
 
+let updateCheckFinished = false;
+
 let installMsgEl: HTMLElement;
 let installNetIoSpanEl: HTMLSpanElement;
 let installNetProgressEl: HTMLProgressElement;
@@ -12,6 +14,8 @@ let installDiskProgressEl: HTMLProgressElement;
 let createPatchProgressEl: HTMLProgressElement;
 let createPatchMsgEl: HTMLElement;
 let createPatchPathMsgEl: HTMLElement;
+
+let installForm: HTMLFormElement;
 
 window.addEventListener("DOMContentLoaded", () => {
   installMsgEl = document.querySelector("#install-msg") ?? throwNull();
@@ -24,7 +28,15 @@ window.addEventListener("DOMContentLoaded", () => {
   createPatchMsgEl = document.querySelector("#create-patch-msg") ?? throwNull();
   createPatchPathMsgEl = document.querySelector("#create-patch-path-msg") ?? throwNull();
 
-  document.querySelector<HTMLFormElement>("#install-form")?.addEventListener("submit", async (e) => {
+  installForm = document.querySelector<HTMLFormElement>("#install-form") ?? throwNull();
+
+  invoke("is_update_check_finished").then((value) => {
+    if (value) {
+      enableElementsOnReady();
+    }
+  });
+
+  installForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
     if (e.submitter instanceof HTMLButtonElement) {
@@ -177,6 +189,25 @@ listen<CreatePatchProgress>("create-patch-progress", (event) => {
   createPatchPathMsgEl.textContent = `${payload.path}`;
 });
 
+listen<string>("update-check-finished", (event) => {
+  console.log("update check finished: ", event);
+
+  if (document.readyState == "complete") {
+    enableElementsOnReady();
+  }
+});
+
 function throwNull(): never {
   throw new Error();
+}
+
+function enableElementsOnReady() {
+  if (updateCheckFinished) {
+    return;
+  }
+  updateCheckFinished = true;
+
+  for (let button of installForm.querySelectorAll("button")) {
+    button.disabled = false;
+  }
 }

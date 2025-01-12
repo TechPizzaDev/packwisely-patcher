@@ -207,7 +207,7 @@ pub(crate) async fn do_install(
             let mut entry_reader = entry.compat();
             while entry_reader.read_buf(&mut read_buf).await? != 0 {
                 let written = dst_file.write_buf(&mut read_buf.split()).await?;
-                
+
                 progress.net.value += response_net_counter.swap(0, atomic::Ordering::Relaxed);
                 progress.disk.value += written as u64;
                 progress.emit(app)?;
