@@ -2,7 +2,10 @@ mod file_util;
 mod install;
 mod wine_util;
 
-use std::{collections::HashSet, path::PathBuf};
+use std::{
+    collections::HashSet, fs::Permissions, os::unix::fs::PermissionsExt, path::PathBuf,
+    process::Stdio,
+};
 
 use async_compat::{Compat, CompatExt};
 use fast_rsync::{
@@ -40,8 +43,17 @@ async fn install(app: AppHandle) -> Result<(), String> {
 
     let install_dir = dirs::data_local_dir().ok_or("missing install dir")?;
 
-    do_install(&app, &http_client, install_dir.join("PackWisely"))
+    let exe_path = do_install(&app, &http_client, install_dir.join("PackWisely"))
         .await
+        .map_err(|err| err.to_string())?;
+
+    tokio::fs::set_permissions(&exe_path, Permissions::from_mode(0o770))
+        .await
+        .map_err(|err| err.to_string())?;
+
+    std::process::Command::new(exe_path)
+        .stdout(Stdio::inherit())
+        .spawn()
         .map_err(|err| err.to_string())?;
 
     Ok(())

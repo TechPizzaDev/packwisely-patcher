@@ -139,7 +139,7 @@ pub(crate) async fn do_install(
     app: &AppHandle,
     http: &reqwest::Client,
     install_dir: PathBuf,
-) -> Result<(), InstallError> {
+) -> Result<PathBuf, InstallError> {
     let mut progress = InstallProgress::default();
 
     let root_url = get_root_url(app)?;
@@ -153,21 +153,21 @@ pub(crate) async fn do_install(
 
     let versions = get_versions(app, http, &mut progress, &root_url, channel_mf).await?;
     let version_mf = versions.last().ok_or(InstallError::UnknownVersion)?;
-    if let Some(mf) = &old_patch_mf {
-        if mf.version == version_mf.version {
-            return Ok(());
-        }
-    }
     let version_url = version_mf.join_url(&channel_url)?;
 
     let platforms = get_platforms(&version_mf)?;
     let platform_mf = &platforms[0];
     let platform_url = platform_mf.join_url(&version_url)?;
 
+    let new_install_dir = join_install_dir(&channel_dir, &version_mf.version, platform_mf);
+    if let Some(mf) = &old_patch_mf {
+        if mf.version == version_mf.version {
+            return Ok(new_install_dir.join(platform_mf.exe_path.clone()));
+        }
+    }
     let old_install_dir =
         old_patch_mf.map(|mf| join_install_dir(&channel_dir, &mf.version, platform_mf));
 
-    let new_install_dir = join_install_dir(&channel_dir, &version_mf.version, platform_mf);
     tokio::fs::create_dir_all(&new_install_dir)
         .await
         .map_err(|e| InstallError::CreateDir(e))?;
@@ -179,7 +179,7 @@ pub(crate) async fn do_install(
         &mut progress,
         &platform_url,
         old_install_dir,
-        new_install_dir,
+        &new_install_dir,
         new_patch_mf.clone(),
     )
     .await?;
@@ -189,7 +189,7 @@ pub(crate) async fn do_install(
         .write_all(&serde_json::to_vec(&new_patch_mf)?)
         .await?;
 
-    Ok(())
+    Ok(new_install_dir.join(platform_mf.exe_path.clone()))
 }
 
 async fn get_channels(
@@ -287,7 +287,7 @@ async fn install_patch(
     progress: &mut InstallProgress,
     platform_url: &Url,
     old_install_dir: Option<PathBuf>,
-    new_install_dir: PathBuf,
+    new_install_dir: &PathBuf,
     new_patch_mf: PatchManifest,
 ) -> Result<(), InstallError> {
     progress.disk.max = new_patch_mf

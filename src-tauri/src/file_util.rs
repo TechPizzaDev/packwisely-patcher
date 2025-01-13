@@ -1,6 +1,6 @@
 use std::{
     fs::FileType,
-    path::{Path, PathBuf, StripPrefixError},
+    path::{PathBuf, StripPrefixError},
 };
 
 use async_stream::try_stream;
