@@ -46,10 +46,12 @@ thiserror = "2"
 fast_rsync = { path = "../submodules/rsync-rs" }
 async-compression = { version = "0.4", default-features = false, features = [
     "zstd",
-    "futures-io",
+    "tokio",
 ] }
 async-tar = "0.5"
 async-compat = "0.2"
 async-stream = "0.3"
 semver = "1"
 url = "2.5"
+memmap2 = "0.9"
+hex = "0.4"

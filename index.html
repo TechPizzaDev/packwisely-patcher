@@ -22,19 +22,21 @@
   <div class="tab-list">
     <button class="tab-link" x:tab="game1"><span>Pack Wisely</span></button>
     <button class="tab-link" x:tab="tool1"><span>Patch Tool</span></button>
+
+    <span class="bottom" id="patcher-version-span" title="Patcher version">?.?.?</span>
   </div>
 
   <div class="tab-body" x:tab="game1">
     <main class="container">
       <div class="row bottom">
         <div class="column">
-          <span class="patch-msg" id="install-msg"> </span>
+          <span class="patch-msg" id="install-msg" title="Install status message"> </span>
 
           <div class="patch-io-grid">
-            <span class="patch-io-span" id="install-net-io-span">? / ?</span>
+            <span class="patch-io-span" id="install-net-io-span" title="Network progress">? / ?</span>
             <progress class="patch-progress patch-progress-net" id="install-net-progress"></progress>
 
-            <span class="patch-io-span" id="install-disk-io-span">? / ?</span>
+            <span class="patch-io-span" id="install-disk-io-span" title="Disk progress">? / ?</span>
             <progress class="patch-progress" id="install-disk-progress"></progress>
           </div>
         </div>

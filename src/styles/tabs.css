@@ -1,4 +1,6 @@
 .tab-list {
+    display: flex;
+    flex-direction: column;
     width: max-content;
     float: left;
     min-height: 100%;

@@ -1,3 +1,4 @@
+import { getVersion } from '@tauri-apps/api/app';;
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -30,6 +31,10 @@ window.addEventListener("DOMContentLoaded", () => {
 
   installForm = document.querySelector<HTMLFormElement>("#install-form") ?? throwNull();
 
+  getVersion().then((version) => {
+    (document.querySelector<HTMLSpanElement>("#patcher-version-span") ?? throwNull()).textContent = version;
+  });
+  
   invoke("is_update_check_finished").then((value) => {
     if (value) {
       enableElementsOnReady();

@@ -1,8 +1,11 @@
-use std::{fs::FileType, path::PathBuf};
+use std::{
+    fs::FileType,
+    path::{Path, PathBuf, StripPrefixError},
+};
 
 use async_stream::try_stream;
-use futures::Stream;
-use tokio::fs::{self, DirEntry};
+use futures::{pin_mut, Stream, StreamExt};
+use tokio::fs::{self, DirEntry, File};
 
 pub fn visit_stream(
     path: impl Into<PathBuf>,
@@ -20,4 +23,31 @@ pub fn visit_stream(
             }
         }
     }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum CopyError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("strip prefix: {0}")]
+    StripPrefix(#[from] StripPrefixError),
+    #[error("failed to get parent")]
+    Orphan,
+}
+
+pub async fn copy_dir(src_dir: &PathBuf, dst_dir: &PathBuf) -> Result<(), CopyError> {
+    let entries = visit_stream(&src_dir);
+    pin_mut!(entries);
+    while let Some((_, entry)) = entries.next().await.transpose()? {
+        let src_path = entry.path();
+        let relative_path = src_path.strip_prefix(&src_dir)?;
+        let dst_path = dst_dir.join(relative_path);
+
+        let dst_parent = dst_path.parent().ok_or(CopyError::Orphan)?;
+        tokio::fs::create_dir(dst_parent).await?;
+
+        File::create_new(&dst_path).await?;
+        tokio::fs::copy(src_path, dst_path).await?;
+    }
+    Ok(())
 }

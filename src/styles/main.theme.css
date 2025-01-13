@@ -48,11 +48,18 @@ button:disabled:hover {
   border-color: #ddd;
 }
 
+progress {
+  accent-color: #00c8c8;
+}
 .patch-progress-net {
   accent-color: lime;
 }
 .progress-error {
     accent-color: red;
+}
+
+#patcher-version-span {
+  color: gray;
 }
 
 @media (prefers-color-scheme: dark) {

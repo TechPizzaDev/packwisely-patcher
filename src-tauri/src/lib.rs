@@ -11,6 +11,7 @@ use fast_rsync::{
 };
 use futures::{pin_mut, AsyncReadExt, StreamExt};
 use install::do_install;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_with::base64::Base64;
 use serde_with::serde_as;
@@ -20,7 +21,6 @@ use tauri_plugin_updater::UpdaterExt;
 use tokio::{
     fs::File,
     io::{AsyncReadExt as OtherAsyncReadExt, AsyncSeekExt, AsyncWriteExt},
-    time::sleep,
 };
 use tokio_util::bytes::BytesMut;
 
@@ -40,7 +40,7 @@ async fn install(app: AppHandle) -> Result<(), String> {
 
     let install_dir = dirs::data_local_dir().ok_or("missing install dir")?;
 
-    do_install(&app, http_client, install_dir.join("PackWisely"))
+    do_install(&app, &http_client, install_dir.join("PackWisely"))
         .await
         .map_err(|err| err.to_string())?;
 
@@ -53,12 +53,14 @@ async fn create_patch(
     out_dir: String,
     new_dir: String,
     old_dir: String,
+    version: String,
 ) -> Result<CreatePatchResult, String> {
     let result = do_create_patch(
         app,
         out_dir.into(),
         new_dir.into(),
         (!old_dir.is_empty()).then(|| old_dir.into()),
+        version,
     )
     .await
     .map_err(|err| err.to_string())?;
@@ -96,6 +98,8 @@ enum PatchManifestVersion {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PatchManifest {
     manifest_version: PatchManifestVersion,
+    version: Version,
+    previous_version: Option<Version>,
     new_files: Vec<FileManifest>,
     diff_files: Vec<FileManifest>,
     stale_files: Vec<String>,
@@ -118,7 +122,10 @@ async fn do_create_patch(
     out_dir: PathBuf,
     new_dir: PathBuf,
     old_dir: Option<PathBuf>,
+    version: String,
 ) -> anyhow::Result<CreatePatchResult> {
+    let version = Version::parse(&version)?;
+
     let mut out_raw_tar = create_tar(&out_dir.join("raw.tar")).await?;
     let mut out_sig_tar = create_tar(&out_dir.join("sig.tar")).await?;
     let mut out_manifest_fs = File::create(out_dir.join("manifest.json")).await?;
@@ -128,6 +135,7 @@ async fn do_create_patch(
     } else {
         let new_files = get_files(&new_dir).await?;
         DiffResult {
+            prev_version: None,
             new_files,
             diff_files: vec![],
             stale_files: vec![],
@@ -202,6 +210,8 @@ async fn do_create_patch(
 
     let manifest = PatchManifest {
         manifest_version: PatchManifestVersion::V1,
+        version,
+        previous_version: diff_result.prev_version,
         new_files: new_mf_files,
         diff_files,
         stale_files: diff_result.stale_files,
@@ -224,6 +234,7 @@ async fn do_create_patch(
 
 #[derive(Debug)]
 struct DiffResult {
+    prev_version: Option<Version>,
     new_files: HashSet<PathBuf>,
     diff_files: Vec<FileManifest>,
     stale_files: Vec<String>,
@@ -236,6 +247,13 @@ async fn do_create_diff(
     new_dir: &PathBuf,
     old_dir: &PathBuf,
 ) -> anyhow::Result<DiffResult> {
+    let old_patch_mf: PatchManifest = {
+        let mut fs = File::open(out_dir.join("manifest.json")).await?;
+        let mut str = String::new();
+        fs.read_to_string(&mut str).await?;
+        serde_json::from_str(&str)?
+    };
+
     let old_sig_tar = open_tar(&old_dir.join("sig.tar")).await?;
     let mut out_diff_tar = create_tar(&out_dir.join("diff.tar")).await?;
 
@@ -259,7 +277,7 @@ async fn do_create_diff(
         let new_path = new_dir.join(&relative_path);
 
         if !new_files.remove(&new_path) {
-            stale_files.push(new_path.to_string_lossy().into());
+            stale_files.push(relative_path.to_string_lossy().into());
             continue;
         }
 
@@ -298,6 +316,7 @@ async fn do_create_diff(
     let out_diff_len = out_diff_fs.into_inner().metadata().await?.len();
 
     Ok(DiffResult {
+        prev_version: Some(old_patch_mf.version),
         new_files,
         diff_files,
         stale_files,
