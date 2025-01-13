@@ -2,10 +2,7 @@ mod file_util;
 mod install;
 mod wine_util;
 
-use std::{
-    collections::HashSet, fs::Permissions, os::unix::fs::PermissionsExt, path::PathBuf,
-    process::Stdio,
-};
+use std::{collections::HashSet, fs::Permissions, path::PathBuf, process::Stdio};
 
 use async_compat::{Compat, CompatExt};
 use fast_rsync::{
@@ -49,6 +46,8 @@ async fn install(app: AppHandle) -> Result<(), String> {
 
     #[cfg(target_family = "unix")]
     {
+        use std::os::unix::fs::PermissionsExt;
+        
         tokio::fs::set_permissions(&exe_path, Permissions::from_mode(0o770))
             .await
             .map_err(|err| err.to_string())?;
