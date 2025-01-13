@@ -44,7 +44,7 @@
       "windows": {
         "installMode": "passive",
         "wix": {
-          "template": "main.wxs"
+          "template": "msi-main.wxs"
         }
       }
     }

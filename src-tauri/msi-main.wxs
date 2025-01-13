@@ -26,6 +26,7 @@
                  Languages="0"
                  Compressed="yes"
                  InstallScope="perUser"
+                 InstallPrivileges="limited"
                  SummaryCodepage="!(loc.TauriCodepage)"/>
 
         <!-- https://docs.microsoft.com/en-us/windows/win32/msi/reinstallmode -->
