@@ -42,10 +42,7 @@
         "https://techpizza.nickac.dev/assets/packwisely-patcher/latest.json"
       ],
       "windows": {
-        "installMode": "passive",
-        "wix": {
-          "template": "msi-main.wxs"
-        }
+        "installMode": "passive"
       }
     }
   }
