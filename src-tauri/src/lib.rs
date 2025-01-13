@@ -47,9 +47,12 @@ async fn install(app: AppHandle) -> Result<(), String> {
         .await
         .map_err(|err| err.to_string())?;
 
-    tokio::fs::set_permissions(&exe_path, Permissions::from_mode(0o770))
-        .await
-        .map_err(|err| err.to_string())?;
+    #[cfg(target_family = "unix")]
+    {
+        tokio::fs::set_permissions(&exe_path, Permissions::from_mode(0o770))
+            .await
+            .map_err(|err| err.to_string())?;
+    }
 
     std::process::Command::new(exe_path)
         .stdout(Stdio::inherit())
