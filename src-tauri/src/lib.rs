@@ -2,7 +2,7 @@ mod file_util;
 mod install;
 mod wine_util;
 
-use std::{collections::HashSet, path::PathBuf, process::Stdio};
+use std::{collections::HashSet, fmt::Display, path::PathBuf, process::Stdio, sync::Mutex};
 
 use async_compat::{Compat, CompatExt};
 use fast_rsync::{
@@ -26,10 +26,8 @@ use tokio_util::bytes::BytesMut;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
-fn is_update_check_finished(app: AppHandle) -> bool {
-    app.try_state::<UpdateCheckState>()
-        .map(|state| state.finished)
-        .unwrap_or(false)
+fn get_update_check_status(app: AppHandle) -> (bool, String) {
+    app.state::<UpdateCheckerState>().get()
 }
 
 #[tauri::command]
@@ -371,7 +369,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
-            is_update_check_finished,
+            get_update_check_status,
             install,
             create_patch
         ])
@@ -386,18 +384,23 @@ pub fn run() {
                 }
             });
 
-            let app_handle = app.handle().clone();
-            let update_join_handle = tauri::async_runtime::spawn(async move {
-                update(app_handle).await.unwrap();
+            app.manage(UpdateCheckerState {
+                status: Mutex::new(UpdateStatus::Initial),
             });
+            let app_handle = app.handle().clone();
+            let update_join_handle =
+                tauri::async_runtime::spawn(async move { update(app_handle).await });
 
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                if let Err(err) = update_join_handle.await {
-                    println!("failed to update: {}", err);
-                }
-                app_handle.manage(UpdateCheckState { finished: true });
-                app_handle.emit("update-check-finished", ()).unwrap();
+                let state = app_handle.state::<UpdateCheckerState>();
+                state.set(match update_join_handle.await {
+                    Ok(res) => res
+                        .err()
+                        .map_or(UpdateStatus::UpToDate, |err| UpdateStatus::Error(err)),
+                    Err(err) => UpdateStatus::JoinError(err),
+                });
+                app_handle.emit("update-check-finished", state.get()).unwrap();
             });
 
             Ok(())
@@ -406,35 +409,81 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-struct UpdateCheckState {
-    finished: bool,
+struct UpdateCheckerState {
+    status: Mutex<UpdateStatus>,
+}
+impl UpdateCheckerState {
+    fn set(&self, status: UpdateStatus) {
+        *self.status.lock().unwrap() = status;
+    }
+
+    fn get(&self) -> (bool, String) {
+        let state = &*self.status.lock().unwrap();
+        let done = match state {
+            UpdateStatus::UpToDate => true,
+            UpdateStatus::Error(_) => true,
+            UpdateStatus::JoinError(_) => true,
+            _ => false,
+        };
+        (done, state.to_string())
+    }
+}
+
+#[derive(Debug)]
+enum UpdateStatus {
+    Initial,
+    Checking,
+
+    Downloading { len: u64, total_len: Option<u64> },
+    DownloadFinished,
+
+    Installing,
+
+    UpToDate,
+    Error(tauri_plugin_updater::Error),
+    JoinError(tauri::Error),
+}
+
+impl Display for UpdateStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UpdateStatus::Error(err) => err.fmt(f),
+            UpdateStatus::JoinError(err) => err.fmt(f),
+            _ => write!(f, "{:?}", self),
+        }
+    }
 }
 
 async fn update(app: AppHandle) -> tauri_plugin_updater::Result<()> {
-    println!("checking for update");
+    let state = app.state::<UpdateCheckerState>();
+    state.set(UpdateStatus::Checking);
 
     if let Some(update) = app.updater()?.check().await? {
-        let mut downloaded = 0;
+        state.set(UpdateStatus::Downloading {
+            len: 0,
+            total_len: None,
+        });
 
+        let mut downloaded = 0;
         let bytes = update
             .download(
-                |chunk_length, content_length| {
-                    downloaded += chunk_length;
-                    println!("downloaded {downloaded} from {content_length:?}");
+                |chunk_len, total_len| {
+                    downloaded += chunk_len as u64;
+                    state.set(UpdateStatus::Downloading {
+                        len: downloaded,
+                        total_len,
+                    });
                 },
                 || {
-                    println!("download finished");
+                    state.set(UpdateStatus::DownloadFinished);
                 },
             )
             .await?;
 
+        state.set(UpdateStatus::Installing);
         update.install(bytes)?;
 
-        println!("update installed");
         app.restart();
-    } else {
-        println!("up to date");
     }
-
     Ok(())
 }

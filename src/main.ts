@@ -17,6 +17,7 @@ let createPatchMsgEl: HTMLElement;
 let createPatchPathMsgEl: HTMLElement;
 
 let installForm: HTMLFormElement;
+let versionSpan: HTMLSpanElement;
 
 window.addEventListener("DOMContentLoaded", () => {
   installMsgEl = document.querySelector("#install-msg") ?? throwNull();
@@ -30,15 +31,17 @@ window.addEventListener("DOMContentLoaded", () => {
   createPatchPathMsgEl = document.querySelector("#create-patch-path-msg") ?? throwNull();
 
   installForm = document.querySelector<HTMLFormElement>("#install-form") ?? throwNull();
+  versionSpan = document.querySelector<HTMLSpanElement>("#patcher-version-span") ?? throwNull();
 
   getVersion().then((version) => {
-    (document.querySelector<HTMLSpanElement>("#patcher-version-span") ?? throwNull()).textContent = version;
+    versionSpan.textContent = version;
   });
   
-  invoke("is_update_check_finished").then((value) => {
-    if (value) {
+  invoke<[boolean, string]>("get_update_check_status").then((value) => {
+    if (value[0]) {
       enableElementsOnReady();
     }
+    versionSpan.title = value[1];
   });
 
   installForm.addEventListener("submit", async (e) => {
@@ -194,11 +197,12 @@ listen<CreatePatchProgress>("create-patch-progress", (event) => {
   createPatchPathMsgEl.textContent = `${payload.path}`;
 });
 
-listen<string>("update-check-finished", (event) => {
+listen<[boolean, string]>("update-check-finished", (event) => {
   console.log("update check finished: ", event);
 
   if (document.readyState == "complete") {
     enableElementsOnReady();
+    versionSpan.title = event.payload[1];
   }
 });
 

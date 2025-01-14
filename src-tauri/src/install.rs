@@ -73,17 +73,17 @@ pub(crate) enum InstallError {
     UnsupportedArch,
     #[error("unsupported operating system")]
     UnsupportedOS,
-    #[error("failed to parse URL: {0}")]
+    #[error(transparent)]
     InvalidUrl(#[from] url::ParseError),
-    #[error("IO error: {0}")]
+    #[error(transparent)]
     Io(#[from] std::io::Error),
-    #[error("net error: {0}")]
+    #[error(transparent)]
     Reqwest(#[from] tauri_plugin_http::reqwest::Error),
-    #[error("version error: {0}")]
+    #[error(transparent)]
     InvalidVersion(#[from] semver::Error),
     #[error("failed to create directory: {0}")]
     CreateDir(std::io::Error),
-    #[error("Tauri error: {0}")]
+    #[error(transparent)]
     Tauri(#[from] tauri::Error),
     #[error("invalid archive path: {0}")]
     InvalidArchivePath(PathBuf),
@@ -93,15 +93,15 @@ pub(crate) enum InstallError {
     MissingPreviousVersion,
     #[error("unexpected file in archive: {0}")]
     UnexpectedArchiveFile(PathBuf),
-    #[error("failed to apply diff: {0}")]
+    #[error(transparent)]
     DiffApplyError(#[from] fast_rsync::ApplyError),
     #[error("wrong size: {expected} != {actual}")]
     WrongSize { expected: u64, actual: u64 },
     #[error("wrong hash: 0x{expected} != 0x{actual}")]
     WrongHash { expected: String, actual: String },
-    #[error("JSON error: {0}")]
+    #[error(transparent)]
     Json(#[from] serde_json::Error),
-    #[error("failed to copy files: {0}")]
+    #[error(transparent)]
     CopyError(#[from] CopyError),
 }
 
